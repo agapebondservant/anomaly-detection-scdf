@@ -1,0 +1,41 @@
+name: anomaly_detection_demo
+
+entry_points:
+  main.sentiment:
+    parameters:
+        msg1: {default: 'Initial test'}
+        firehose-proxy: {default: '{mlparams.firehose_proxy}'}
+    command: 'python -c "import app.home; app.home.process_sentiment_model({firehose-proxy})"'
+  evaluate.sentiment:
+    parameters:
+        msg1: {default: 'Evaluation test'}
+        build-regression-model: {default: '{mlparams.build_regression_model}'}
+    command: 'python -c "import app.home; app.home.evaluate_sentiment_model({build-regression-model})"'
+
+  main.anomaly.arima:
+    parameters:
+        msg1: {default: 'Initial test'}
+        sample-frequency: {default: '{mlparams.sample_frequency}'}
+        reporting-timeframe: {default: '{mlparams.reporting_timeframe}'}
+        rebuild: {default: '{mlparams.rebuild}'}
+    command: 'python -c "import app.home; app.home.process_anomaly_arima_model({sample-frequency}, {reporting-timeframe}, {rebuild})"'
+  evaluate.anomaly.arima:
+    parameters:
+        msg1: {default: 'Evaluation test'}
+        build-anomaly-model: {default: '{mlparams.build_anomaly_model}'}
+    command: 'python -c "import app.home; app.home.evaluate_anomaly_arima_model({build-anomaly-model})"'
+
+  main.anomaly.rnn:
+    parameters:
+        msg1: {default: 'Initial test'}
+        sample-frequency: {default: '{mlparams.sample_frequency}'}
+        reporting-timeframe: {default: '{mlparams.reporting_timeframe}'}
+        rebuild: {default: '{mlparams.rebuild}'}
+    command: 'python -c "import app.home; app.home.process_anomaly_rnn_model({sample-frequency}, {reporting-timeframe}, {rebuild})"'
+  evaluate.anomaly.rnn:
+    parameters:
+        msg1: {default: 'Evaluation test'}
+        build-anomaly-model: {default: '{mlparams.build_anomaly_model}'}
+    command: 'python -c "import app.home; app.home.evaluate_anomaly_rnn_model({build-anomaly-model})"'
+
+
