@@ -10,6 +10,8 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import numpy as np
 import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('rnn')
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
 from statsmodels.tsa.stattools import adfuller
@@ -29,7 +31,6 @@ from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
-logger = logging.getLogger('rnn')
 
 ########################################################################################################################
 # ANOMALY DETECTION
