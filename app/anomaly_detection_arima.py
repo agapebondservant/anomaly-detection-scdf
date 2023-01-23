@@ -26,8 +26,7 @@ import json
 import app.feature_store as feature_store
 import app.anomaly_detection as anomaly_detection
 import distributed.ray.utilities as utils_ext
-from mlmetrics import exporter
-import Prodict
+from prodict import Prodict
 
 
 ########################################################################################################################

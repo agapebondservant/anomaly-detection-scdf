@@ -28,7 +28,7 @@ from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
-import Prodict
+from prodict import Prodict
 
 
 ########################################################################################################################
