@@ -10,6 +10,7 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import numpy as np
 import logging
+logging.info('arima start...')
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
 from statsmodels.tsa.stattools import adfuller
@@ -29,6 +30,7 @@ import distributed.ray.utilities as utils_ext
 from prodict import Prodict
 from mlmetrics import exporter
 logger = logging.getLogger('arima')
+logger.info('arima end...')
 
 
 ########################################################################################################################
