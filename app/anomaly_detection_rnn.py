@@ -27,6 +27,7 @@ from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
+import Prodict
 
 
 ########################################################################################################################
@@ -292,6 +293,11 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
 
     model_rnn_results_full.loc[
         model_rnn_results_full['actualvalues'] > model_rnn_results_full['threshold'], 'anomaly'] = 1
+
+    logging.info(f"Exporting ML metrics - MAE..{mae}, ")
+    scdf_tags = Prodict.from_dict(json.loads(utils_ext.get_env_var('SCDF_RUN_TAGS')))
+    scdf_tags = Prodict.from_dict({**scdf_tags, **{'model_type': 'rnn'}})
+    exporter.prepare_histogram('anomalydetection:mae', 'Mean Absolute Error', scdf_tags, mae)
 
     print(f"Anomaly distribution: \n{model_rnn_results_full['anomaly'].value_counts()}")
 

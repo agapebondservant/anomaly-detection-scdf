@@ -168,7 +168,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     feature_store.log_metric(model_arima_results.mae, 'mae', distributed=False)  # track the Mean Absolute Error
 
     # Publish ML metrics
-    logging.info(f"Exporting ML metrics - AIC...{model_arima_results.aic}, BIC...{model_arima_results.mae}, ")
+    logging.info(f"Exporting ML metrics - AIC...{model_arima_results.aic}, MAE...{model_arima_results.mae}, ")
     scdf_tags = Prodict.from_dict(json.loads(utils_ext.get_env_var('SCDF_RUN_TAGS')))
     scdf_tags = Prodict.from_dict({**scdf_tags, **{'model_type': 'arima'}})
     exporter.prepare_histogram('anomalydetection:aic', 'Akaike Information Criterion', scdf_tags, model_arima_results.aic)

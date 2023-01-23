@@ -31,21 +31,6 @@ import distributed.ray.utilities as utils_ext
 # ANOMALY DETECTION
 ########################################################################################################################
 
-########################
-# Use the Specified Model
-# or default if none is specified
-########################
-def use_model(model):
-    logging.info(f"Setting up anomaly detection module...{model}")
-    if model is None:
-        return sys.modules[__name__]
-    else:
-        try:
-            return sys.modules[model]
-        except KeyError as e:
-            logging.error(f"ERROR: No module found named {model}")
-            raise e
-
 
 ########################
 # Ingest Data
