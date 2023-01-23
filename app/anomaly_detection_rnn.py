@@ -20,19 +20,19 @@ import matplotlib.pyplot as plt
 import scipy.stats as st
 import re
 import json
+from prodict import Prodict
+from mlmetrics import exporter
+import distributed.ray.utilities as utils_ext
 import app.feature_store as feature_store
 import app.anomaly_detection as anomaly_detection
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
-logging.info('rnn start 1...')
-from mlmetrics import exporter
-import distributed.ray.utilities as utils_ext
+"""logging.info('rnn start 1...')
 logging.info('rnn start 2...')
-from prodict import Prodict
 logger = logging.getLogger('rnn')
-logging.info('rnn end...')
+logging.info('rnn end...')"""
 
 ########################################################################################################################
 # ANOMALY DETECTION
