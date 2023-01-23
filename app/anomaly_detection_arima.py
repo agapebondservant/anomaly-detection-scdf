@@ -27,6 +27,7 @@ import app.feature_store as feature_store
 import app.anomaly_detection as anomaly_detection
 import distributed.ray.utilities as utils_ext
 from prodict import Prodict
+from mlmetrics import exporter
 logger = logging.getLogger('arima')
 
 
