@@ -25,11 +25,11 @@ from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
 import app.feature_store as feature_store
 import app.anomaly_detection as anomaly_detection
-logger = logging.getLogger('rnn')
-"""from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
+from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
-from tensorflow.keras.callbacks import EarlyStopping"""
+from tensorflow.keras.callbacks import EarlyStopping
+logger = logging.getLogger('rnn')
 
 ########################################################################################################################
 # ANOMALY DETECTION
