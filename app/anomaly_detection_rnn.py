@@ -26,8 +26,8 @@ from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
-from mlmetrics import exporter
 logging.info('rnn start 1...')
+from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
 logging.info('rnn start 2...')
 from prodict import Prodict
