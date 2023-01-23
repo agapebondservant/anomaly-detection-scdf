@@ -23,7 +23,8 @@ import scipy.stats as st
 import re
 import math
 import json
-import feature_store, data_source, anomaly_detection
+import app.feature_store as feature_store
+import app.anomaly_detection as anomaly_detection
 import distributed.ray.utilities as utils_ext
 from mlmetrics import exporter
 import Prodict

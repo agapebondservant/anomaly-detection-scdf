@@ -12,9 +12,9 @@ import app.sentiment_analysis
 import os
 from scdfutils.run_adapter import scdf_adapter
 import ray
-import feature_store
-import anomaly_detection_arima
-import anomaly_detection_rnn
+import app.feature_store as feature_store
+import app.anomaly_detection_arima as anomaly_detection_arima
+import app.anomaly_detection_rnn as anomaly_detection_rnn
 import traceback
 
 HttpHealthServer.run_thread()

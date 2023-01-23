@@ -22,8 +22,8 @@ import scipy.stats as st
 import re
 import math
 import json
-import feature_store
-import data_source
+import app.feature_store as feature_store
+import app.data_source as data_source
 import distributed.ray.utilities as utils_ext
 
 

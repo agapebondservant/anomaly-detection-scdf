@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 import scipy.stats as st
 import re
 import json
-from app.main.python import feature_store, data_source, anomaly_detection
+import app.feature_store as feature_store
+import app.anomaly_detection as anomaly_detection
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
