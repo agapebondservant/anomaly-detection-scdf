@@ -29,7 +29,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from mlmetrics import exporter
 import distributed.ray.utilities as utils_ext
 from prodict import Prodict
-
+logger = logging.getLogger('rnn')
 
 ########################################################################################################################
 # ANOMALY DETECTION
@@ -103,7 +103,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 # Generate and Save ADF Results
 #######################################
 def generate_and_save_adf_results(actual_negative_sentiments):
-    logging.info("Generate and save Dickey-Fuller test results...")
+    logger.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
     feature_store.save_artifact(adfuller_results, 'adf_results', distributed=False)
     return adfuller_results
@@ -113,7 +113,7 @@ def generate_and_save_adf_results(actual_negative_sentiments):
 # Check for stationarity
 #######################################
 def check_stationarity(adfuller_results):
-    logging.info("Check for stationarity...")
+    logger.info("Check for stationarity...")
     return adfuller_results[1] < 0.05
 
 
@@ -121,7 +121,7 @@ def check_stationarity(adfuller_results):
 # Generate and Save Stationary Results
 #######################################
 def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_window_size):
-    logging.info("Save stationarity plot results...")
+    logger.info("Save stationarity plot results...")
     plot_acf(actual_negative_sentiments['sentiment'], lags=20)
     plt.savefig("anomaly_acf.png", bbox_inches='tight')
     plot_pacf(actual_negative_sentiments['sentiment_normalized'])
@@ -134,7 +134,7 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 # Build RNN model
 #######################################
 def build_model(actual_negative_sentiments, sliding_window_size=144, data_freq=10, rebuild=False):
-    logging.info("Build RNN model...")
+    logger.info("Build RNN model...")
 
     generator = feature_store.load_artifact('anomaly_timeseries', distributed=False)
 
@@ -154,7 +154,7 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
     # The training data
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
 
-    logging.info(f"Size of training set: {len(actual_negative_sentiments_train)}")
+    logger.info(f"Size of training set: {len(actual_negative_sentiments_train)}")
 
     # number of outputs per batch
     batch_length = sliding_window_size
@@ -185,12 +185,12 @@ def build_timeseries_generator(actual_negative_sentiments, training_window_size,
 #######################################
 def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, sliding_window_size=144, rebuild=False,
                 data_freq=10):
-    logging.info(f"Train RNN model...")
+    logger.info(f"Train RNN model...")
 
     # generate batch_length - number of outputs per batch; generator batch size; number of features
     batch_length, timeseries_batch_size, num_features, num_weights = sliding_window_size, 1, 1, 150
 
-    logging.info(f"Using batch_length={batch_length}, training_window_size={training_window_size}")
+    logger.info(f"Using batch_length={batch_length}, training_window_size={training_window_size}")
 
     # set up model
     rnn_model = Sequential()
@@ -211,7 +211,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 
     standard_scaler_rnn = feature_store.load_artifact('scaler_rnn_train', distributed=False)
 
-    logging.info(f"Standard scaler: {standard_scaler_rnn}")
+    logger.info(f"Standard scaler: {standard_scaler_rnn}")
 
     # set the test data
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:training_window_size].dropna()
@@ -253,7 +253,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 # Load RNN model
 #######################################
 def load_model():
-    logging.info("Loading RNN model...")
+    logger.info("Loading RNN model...")
     return feature_store.load_model('anomaly_rnn_model', flavor='tensorflow')
 
 
@@ -261,7 +261,7 @@ def load_model():
 # Test RNN Model
 #######################################
 def test_rnn_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
-    logging.info('Testing RNN model...')
+    logger.info('Testing RNN model...')
 
     return generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
                               actual_negative_sentiments)
@@ -271,7 +271,7 @@ def test_rnn_model(sliding_window_size, total_forecast_size, stepwise_fit, actua
 # Detect Anomalies
 #######################################
 def detect_anomalies(predictions, window_size, actual_negative_sentiments):
-    logging.info('Detecting anomalies...')
+    logger.info('Detecting anomalies...')
 
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
@@ -279,7 +279,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     predictions = predictions.iloc[-int(window_size):]
 
     df_total = actual_negative_sentiments['sentiment'].iloc[:int(window_size)].iloc[-len(predictions):]
-    logging.info(f"anomalies for...{df_total} {predictions}...sizes: {len(df_total)} , {len(predictions)}")
+    logger.info(f"anomalies for...{df_total} {predictions}...sizes: {len(df_total)} , {len(predictions)}")
     mae = median_absolute_error(df_total, predictions)
 
     model_rnn_results_full = \
@@ -295,7 +295,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
     model_rnn_results_full.loc[
         model_rnn_results_full['actualvalues'] > model_rnn_results_full['threshold'], 'anomaly'] = 1
 
-    logging.info(f"Exporting ML metrics - MAE..{mae}, ")
+    logger.info(f"Exporting ML metrics - MAE..{mae}, ")
     scdf_tags = Prodict.from_dict(json.loads(utils_ext.get_env_var('SCDF_RUN_TAGS')))
     scdf_tags = Prodict.from_dict({**scdf_tags, **{'model_type': 'rnn'}})
     exporter.prepare_histogram('anomalydetection:mae', 'Mean Absolute Error', scdf_tags, mae)
@@ -316,7 +316,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
                        rebuild=False,
                        total_training_window=1440,
                        data_freq=10):
-    logging.info("Generate RNN predictions...")
+    logger.info("Generate RNN predictions...")
 
     # The dataset to forecast with
     if rebuild:
@@ -396,7 +396,7 @@ def get_prior_forecasts():
 
 def get_predictions_before_or_at(dt):
     forecasts = feature_store.load_artifact('anomaly_rnn_forecasts', distributed=False)
-    logging.info(f"forecasts is {dt} {forecasts}")
+    logger.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index <= dt]
@@ -424,7 +424,7 @@ def get_train_test_split_percent(actual_negative_sentiments, total_forecast_wind
 # Convert timeframe flag to number of time lags
 #######################################
 def get_time_lags(timeframe='day'):
-    logging.info(f"Get time lag for {timeframe}...")
+    logger.info(f"Get time lag for {timeframe}...")
     time_lags = {'hour': 1, 'day': 24, 'week': 168}
     return time_lags[timeframe]
 
@@ -435,7 +435,7 @@ def get_time_lags(timeframe='day'):
 
 
 def publish_trend_stats(actual_negative_sentiments=None):
-    logging.info("In publish_trend_stats...")
+    logger.info("In publish_trend_stats...")
     if actual_negative_sentiments is None:
         actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False,
                                                                  can_cache=False)
@@ -456,7 +456,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
 
         num_negative_in_past = actual_negative_sentiments.loc[actual_negative_sentiments.index >= offset_time][
             'sentiment'].sum()
-        logging.info(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
+        logger.info(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
 
         stats.append(num_negative_in_past)
 
@@ -465,7 +465,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
     new_summary = pd.DataFrame.from_dict(new_summary)
 
     summary = pd.concat([old_summary, new_summary])
-    logging.info(f"New Summary: {new_summary}")
+    logger.info(f"New Summary: {new_summary}")
 
     feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
 
@@ -482,8 +482,8 @@ def get_trend_stats():
 
 
 def process_stats(head, body):
-    logging.info('In process_stats...')
-    logging.info(f'{json.loads(body)} {head}')
+    logger.info('In process_stats...')
+    logger.info(f'{json.loads(body)} {head}')
 
 
 #######################################

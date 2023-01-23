@@ -27,6 +27,7 @@ import app.feature_store as feature_store
 import app.anomaly_detection as anomaly_detection
 import distributed.ray.utilities as utils_ext
 from prodict import Prodict
+logger = logging.getLogger('arima')
 
 
 ########################################################################################################################
@@ -102,7 +103,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 # Generate and Save ADF Results
 #######################################
 def generate_and_save_adf_results(actual_negative_sentiments):
-    logging.info("Generate and save Dickey-Fuller test results...")
+    logger.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
     feature_store.save_artifact(adfuller_results, 'adf_results')
     return adfuller_results
@@ -112,7 +113,7 @@ def generate_and_save_adf_results(actual_negative_sentiments):
 # Check for stationarity
 #######################################
 def check_stationarity(adfuller_results):
-    logging.info("Check for stationarity...")
+    logger.info("Check for stationarity...")
     return adfuller_results[1] < 0.05
 
 
@@ -120,7 +121,7 @@ def check_stationarity(adfuller_results):
 # Generate and Save Stationary Results
 #######################################
 def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_window_size):
-    logging.info("Save stationarity plot results...")
+    logger.info("Save stationarity plot results...")
     plot_acf(actual_negative_sentiments['sentiment'], lags=20)
     plt.savefig("anomaly_acf.png", bbox_inches='tight')
     plot_pacf(actual_negative_sentiments['sentiment_normalized'])
@@ -133,7 +134,7 @@ def generate_and_save_stationarity_results(actual_negative_sentiments, sliding_w
 # Perform Auto ARIMA to build model
 #######################################
 def build_model(actual_negative_sentiments, rebuild=False):
-    logging.info("Running auto_arima to build ARIMA model...")
+    logger.info("Running auto_arima to build ARIMA model...")
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
     if rebuild is True:
@@ -141,7 +142,7 @@ def build_model(actual_negative_sentiments, rebuild=False):
                                   max_q=6,
                                   seasonal=True, trace=True)
 
-    logging.info(f"stepwise fit is now...{stepwise_fit}")
+    logger.info(f"stepwise fit is now...{stepwise_fit}")
 
     feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
     return stepwise_fit
@@ -152,7 +153,7 @@ def build_model(actual_negative_sentiments, rebuild=False):
 #######################################
 def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, rebuild=False,
                 data_freq=10):
-    logging.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
+    logger.info(f"Train ARIMA model with params (p,d,q) = {stepwise_fit.order}...")
     actual_negative_sentiments_train = actual_negative_sentiments.iloc[:int(training_window_size)]
 
     model_arima_order = stepwise_fit.order
@@ -168,7 +169,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     feature_store.log_metric(model_arima_results.mae, 'mae', distributed=False)  # track the Mean Absolute Error
 
     # Publish ML metrics
-    logging.info(f"Exporting ML metrics - AIC...{model_arima_results.aic}, MAE...{model_arima_results.mae}, ")
+    logger.info(f"Exporting ML metrics - AIC...{model_arima_results.aic}, MAE...{model_arima_results.mae}, ")
     scdf_tags = Prodict.from_dict(json.loads(utils_ext.get_env_var('SCDF_RUN_TAGS')))
     scdf_tags = Prodict.from_dict({**scdf_tags, **{'model_type': 'arima'}})
     exporter.prepare_histogram('anomalydetection:aic', 'Akaike Information Criterion', scdf_tags, model_arima_results.aic)
@@ -181,7 +182,7 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 # Test ARIMA Model
 #######################################
 def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments):
-    logging.info('Testing ARIMA model...')
+    logger.info('Testing ARIMA model...')
 
     return generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit,
                               actual_negative_sentiments)
@@ -191,7 +192,7 @@ def test_arima_model(sliding_window_size, total_forecast_size, stepwise_fit, act
 # Detect Anomalies
 #######################################
 def detect_anomalies(predictions, window_size, actual_negative_sentiments):
-    logging.info('Detecting anomalies...')
+    logger.info('Detecting anomalies...')
 
     z_score = st.norm.ppf(.95)  # 95% confidence interval
     mae_scale_factor = 0.67449  # MAE is 0.67449 * std
@@ -200,7 +201,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
 
     df_total = actual_negative_sentiments['sentiment_normalized'].iloc[:int(window_size)].iloc[-len(predictions):]
     # mae = median_absolute_error(df_total.iloc[-int(window_size):], predictions)
-    logging.info(f"anomalies for...{df_total} {predictions}")
+    logger.info(f"anomalies for...{df_total} {predictions}")
     mae = median_absolute_error(df_total, predictions)
 
     model_arima_results_full = \
@@ -231,7 +232,7 @@ def detect_anomalies(predictions, window_size, actual_negative_sentiments):
 def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, actual_negative_sentiments,
                        rebuild=False,
                        total_training_window=144):
-    logging.info("Generate ARIMA predictions...")
+    logger.info("Generate ARIMA predictions...")
 
     # The number of forecasts per sliding window will be the number of AR or MA lags, as ARIMA can't forecast beyond that
     num_lags = max(stepwise_fit.order[0], max(stepwise_fit.order[2], 1))
@@ -257,7 +258,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         # Compute the start & end indexes
         end_idx = end_idx + num_lags
         start_idx = end_idx - sliding_window_size
-        logging.info(f'DEBUG: {start_idx} {end_idx} {end_idx - start_idx} {len(df)} {len(actual_negative_sentiments)}')
+        logger.info(f'DEBUG: {start_idx} {end_idx} {end_idx - start_idx} {len(df)} {len(actual_negative_sentiments)}')
         tmp_data = actual_negative_sentiments[int(start_idx):int(end_idx)]
         tmp_arima = ARIMA(tmp_data['sentiment_normalized'], order=stepwise_fit.order)
         tmp_model_arima_results = tmp_arima.fit()
@@ -265,7 +266,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
         predictions = predictions.append(pd.Series(pred))
 
     # Save forecasts
-    logging.info(f"Number of anomaly_arima_forecasts to save...{len(predictions)}")
+    logger.info(f"Number of anomaly_arima_forecasts to save...{len(predictions)}")
     feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
 
     # Return predictions
@@ -278,7 +279,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 
 def get_prior_forecasts():
     forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
-    logging.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
+    logger.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         forecasts = pd.Series([])
     return forecasts
@@ -290,7 +291,7 @@ def get_prior_forecasts():
 
 def get_predictions_before_or_at(dt):
     forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
-    logging.info(f"forecasts is {dt} {forecasts}")
+    logger.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index <= dt]
@@ -302,7 +303,7 @@ def get_predictions_before_or_at(dt):
 
 def get_forecasts_after(dt):
     forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
-    logging.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
+    logger.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         return pd.Series([])
     return forecasts[forecasts.index > dt]
@@ -312,7 +313,7 @@ def get_forecasts_after(dt):
 # Convert timeframe flag to number of time lags
 #######################################
 def get_time_lags(timeframe='day'):
-    logging.info(f"Get time lag for {timeframe}...")
+    logger.info(f"Get time lag for {timeframe}...")
     time_lags = {'hour': 1, 'day': 24, 'week': 168}
     return time_lags[timeframe]
 
@@ -342,7 +343,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
 
         num_negative_in_past = actual_negative_sentiments.loc[actual_negative_sentiments.index >= offset_time][
             'sentiment'].sum()
-        logging.info(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
+        logger.info(f"Number of negative posts in past {sample_frequency_num} minutes: {num_negative_in_past}")
 
         stats.append(num_negative_in_past)
 
@@ -351,7 +352,7 @@ def publish_trend_stats(actual_negative_sentiments=None):
     new_summary = pd.DataFrame.from_dict(new_summary)
 
     summary = pd.concat([old_summary, new_summary])
-    logging.info(f"New Summary: {new_summary}")
+    logger.info(f"New Summary: {new_summary}")
 
     feature_store.save_artifact(summary, 'anomaly_summary', distributed=False)
 
@@ -368,8 +369,8 @@ def get_trend_stats():
 
 
 def process_stats(head, body):
-    logging.info('In process_stats...')
-    logging.info(f'{json.loads(body)} {head}')
+    logger.info('In process_stats...')
+    logger.info(f'{json.loads(body)} {head}')
 
 
 #######################################
