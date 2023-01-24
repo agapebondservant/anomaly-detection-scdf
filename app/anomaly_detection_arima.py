@@ -28,6 +28,7 @@ import app.anomaly_detection as anomaly_detection
 import distributed.ray.utilities as utils_ext
 from prodict import Prodict
 from mlmetrics import exporter
+
 logger = logging.getLogger('arima')
 
 
@@ -139,9 +140,14 @@ def build_model(actual_negative_sentiments, rebuild=False):
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
     if rebuild is True:
-        stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
-                                  max_q=6,
-                                  seasonal=True, trace=True)
+        def get_stepwise_fit():
+            stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
+                                      max_q=6,
+                                      seasonal=True, trace=True)
+            return stepwise_fit
+
+        func = ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024)
+        stepwise_fit = ray.get(func.remote())
 
     logger.info(f"stepwise fit is now...{stepwise_fit}")
 
@@ -165,7 +171,8 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
 
     model_arima_results = model_arima.fit()  # fit the model
 
-    feature_store.log_metric(model_arima_results.aic, 'aic', distributed=False)  # track the Akaike Information Criterion
+    feature_store.log_metric(model_arima_results.aic, 'aic',
+                             distributed=False)  # track the Akaike Information Criterion
 
     feature_store.log_metric(model_arima_results.mae, 'mae', distributed=False)  # track the Mean Absolute Error
 
@@ -173,7 +180,8 @@ def train_model(training_window_size, stepwise_fit, actual_negative_sentiments, 
     logger.info(f"Exporting ML metrics - AIC...{model_arima_results.aic}, MAE...{model_arima_results.mae}, ")
     scdf_tags = Prodict.from_dict(json.loads(utils_ext.get_env_var('SCDF_RUN_TAGS')))
     scdf_tags = Prodict.from_dict({**scdf_tags, **{'model_type': 'arima'}})
-    exporter.prepare_histogram('anomalydetection:aic', 'Akaike Information Criterion', scdf_tags, model_arima_results.aic)
+    exporter.prepare_histogram('anomalydetection:aic', 'Akaike Information Criterion', scdf_tags,
+                               model_arima_results.aic)
     exporter.prepare_histogram('anomalydetection:mae', 'Mean Absolute Error', scdf_tags, model_arima_results.mae)
 
     return model_arima_results.fittedvalues
@@ -326,7 +334,8 @@ def get_time_lags(timeframe='day'):
 
 def publish_trend_stats(actual_negative_sentiments=None):
     if actual_negative_sentiments is None:
-        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False, can_cache=False)
+        actual_negative_sentiments = feature_store.load_artifact('actual_negative_sentiments', distributed=False,
+                                                                 can_cache=False)
 
     sample_frequencies = ['1min', '10min', '60min']
 
