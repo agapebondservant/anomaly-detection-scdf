@@ -244,7 +244,7 @@ def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False'
         traceback.print_exc()
 
 
-@ray.remote(num_cpus=2, memory=40 * 1024 * 1024)
+@ray.remote(num_cpus=4, memory=2 * 1024 * 1024 * 1024)
 def _build_and_train(buffers, model_type, data_freq,
                      total_training_window, total_forecast_window, sliding_window_size,
                      extvars, reporting_timeframe, rebuild):
@@ -283,6 +283,8 @@ def _build_and_train(buffers, model_type, data_freq,
 
     # TEMPORARY: Set a flag indicating that training was done
     feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
+
+    logger.info("Training complete.")
 
     return True
 
