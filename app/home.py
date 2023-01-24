@@ -185,6 +185,7 @@ def process_anomaly_rnn_model(sample_frequency, reporting_timeframe, rebuild='Fa
     return process_anomaly_model(sample_frequency, reporting_timeframe, rebuild=rebuild, model_type=anomaly_detection_rnn)
 
 
+@ray.remote(num_cpus=2, memory=40 * 1024 * 1024)
 def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False', model_type=anomaly_detection_arima):
     rebuild = eval(rebuild)
 

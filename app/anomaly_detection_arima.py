@@ -107,7 +107,7 @@ def get_filtered_data_sets(df, sample_frequency, extvars):
 def generate_and_save_adf_results(actual_negative_sentiments):
     logger.info("Generate and save Dickey-Fuller test results...")
     adfuller_results = adfuller(actual_negative_sentiments['sentiment_normalized'])
-    feature_store.save_artifact(adfuller_results, 'adf_results')
+    feature_store.save_artifact(adfuller_results, 'adf_results', distributed=False)
     return adfuller_results
 
 
@@ -140,27 +140,14 @@ def build_model(actual_negative_sentiments, rebuild=False):
     stepwise_fit = feature_store.load_artifact('anomaly_auto_arima', distributed=False)
 
     if rebuild is True:
-        def get_stepwise_fit():
-            stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
-                                      max_q=6,
-                                      seasonal=True, trace=True)
-            logger.info(f"stepwise fit is now...{stepwise_fit}")
-            return True
+        stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
+                                  max_q=6,
+                                  seasonal=True, trace=True)
 
-        def save():
-            feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
-            return True
+    logger.info(f"stepwise fit is now...{stepwise_fit}")
 
-        tasks = [ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024),
-                 ray.remote(save).options(num_cpus=2, memory=40 * 1024 * 1024)]
-        [ray.get(task.remote()) for task in tasks]
-
-        return feature_store.load_artifact('anomaly_auto_arima', distributed=False)
-    else:
-        return stepwise_fit
-
-    # feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
-    # return stepwise_fit
+    feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
+    return stepwise_fit
 
 
 #######################################
@@ -284,7 +271,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 
     # Save forecasts
     logger.info(f"Number of anomaly_arima_forecasts to save...{len(predictions)}")
-    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts')
+    feature_store.save_artifact(predictions, 'anomaly_arima_forecasts', distributed=False)
 
     # Return predictions
     return predictions
@@ -295,7 +282,7 @@ def generate_forecasts(sliding_window_size, total_forecast_size, stepwise_fit, a
 #######################################
 
 def get_prior_forecasts():
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     logger.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         forecasts = pd.Series([])
@@ -307,7 +294,7 @@ def get_prior_forecasts():
 ##############################################
 
 def get_predictions_before_or_at(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     logger.info(f"forecasts is {dt} {forecasts}")
     if forecasts is None:
         return pd.Series([])
@@ -319,7 +306,7 @@ def get_predictions_before_or_at(dt):
 ##############################################
 
 def get_forecasts_after(dt):
-    forecasts = feature_store.load_artifact('anomaly_arima_forecasts')
+    forecasts = feature_store.load_artifact('anomaly_arima_forecasts', distributed=False)
     logger.info(f"Number of forecasts loaded...{len(forecasts) if forecasts is not None else 0}")
     if forecasts is None:
         return pd.Series([])
