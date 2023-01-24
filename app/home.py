@@ -178,14 +178,22 @@ def evaluate_sentiment_model(ready):
 
 @scdf_adapter(environment=None)
 def process_anomaly_arima_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    return process_anomaly_model(sample_frequency, reporting_timeframe, rebuild=rebuild,
-                                 model_type=anomaly_detection_arima)
+    t = threading.Thread(target=process_anomaly_model,
+                         args=(sample_frequency, reporting_timeframe,),
+                         kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_arima})
+    t.start()
+    t.join()
+    return True
 
 
 @scdf_adapter(environment=None)
 def process_anomaly_rnn_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    return process_anomaly_model(sample_frequency, reporting_timeframe, rebuild=rebuild,
-                                 model_type=anomaly_detection_rnn)
+    t = threading.Thread(target=process_anomaly_model,
+                         args=(sample_frequency, reporting_timeframe,),
+                         kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_rnn})
+    t.start()
+    t.join()
+    return True
 
 
 def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False', model_type=anomaly_detection_arima):
@@ -235,63 +243,49 @@ def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False'
         logging.info(f'Stationarity : {model_type.check_stationarity(adf_results)}')
         logging.info(f'P-value : {adf_results[1]}')
 
-        training_task_results = threading.Thread(target=_build_and_train, args=(buffers, model_type, data_freq,
-                                                 total_training_window, total_forecast_window, sliding_window_size,
-                                                 extvars, reporting_timeframe, rebuild,))
-        training_task_results.start()
+        # Build a predictive model (or reuse existing one if this is not rebuild mode)
+        stepwise_fit = model_type.build_model(buffers['actual_negative_sentiments'], rebuild)
+
+        # Perform training
+        model_results = model_type.train_model(total_training_window, stepwise_fit,
+                                               buffers['actual_negative_sentiments'],
+                                               rebuild=rebuild,
+                                               data_freq=data_freq)
+
+        # Perform forecasting
+        model_forecasts = model_type.generate_forecasts(sliding_window_size,
+                                                        total_forecast_window,
+                                                        stepwise_fit,
+                                                        buffers[
+                                                            'actual_negative_sentiments'],
+                                                        rebuild,
+                                                        total_training_window=total_training_window)
+
+        # Detect anomalies
+        model_results_full = model_type.detect_anomalies(model_results,  # fittedvalues,
+                                                         total_training_window,
+                                                         buffers['actual_negative_sentiments'])
+
+        # Plot anomalies
+        fig = model_type.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
+                                                   model_results_full,
+                                                   model_forecasts,
+                                                   total_training_window,
+                                                   stepwise_fit,
+                                                   extvars,
+                                                   reporting_timeframe,
+                                                   data_freq=data_freq)
+
+        # TEMPORARY: Set a flag indicating that training was done
+        feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
+
+        logger.info("Training complete.")
 
         return True
-
-        # return ray.get(training_task_results)
 
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
-
-
-# @ray.remote(num_cpus=4, memory=2 * 1024 * 1024 * 1024)
-def _build_and_train(buffers, model_type, data_freq,
-                     total_training_window, total_forecast_window, sliding_window_size,
-                     extvars, reporting_timeframe, rebuild):
-    # Build a predictive model (or reuse existing one if this is not rebuild mode)
-    stepwise_fit = model_type.build_model(buffers['actual_negative_sentiments'], rebuild)
-
-    # Perform training
-    model_results = model_type.train_model(total_training_window, stepwise_fit,
-                                           buffers['actual_negative_sentiments'],
-                                           rebuild=rebuild,
-                                           data_freq=data_freq)
-
-    # Perform forecasting
-    model_forecasts = model_type.generate_forecasts(sliding_window_size,
-                                                    total_forecast_window,
-                                                    stepwise_fit,
-                                                    buffers[
-                                                        'actual_negative_sentiments'],
-                                                    rebuild,
-                                                    total_training_window=total_training_window)
-
-    # Detect anomalies
-    model_results_full = model_type.detect_anomalies(model_results,  # fittedvalues,
-                                                     total_training_window,
-                                                     buffers['actual_negative_sentiments'])
-
-    # Plot anomalies
-    fig = model_type.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
-                                               model_results_full,
-                                               model_forecasts,
-                                               total_training_window,
-                                               stepwise_fit,
-                                               extvars,
-                                               reporting_timeframe,
-                                               data_freq=data_freq)
-
-    # TEMPORARY: Set a flag indicating that training was done
-    feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
-
-    logger.info("Training complete.")
-
-    return True
 
 
 @scdf_adapter(environment=None)
