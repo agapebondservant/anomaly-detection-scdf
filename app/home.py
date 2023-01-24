@@ -178,21 +178,37 @@ def evaluate_sentiment_model(ready):
 
 @scdf_adapter(environment=None)
 def process_anomaly_arima_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    t = threading.Thread(target=process_anomaly_model,
-                         args=(sample_frequency, reporting_timeframe,),
-                         kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_arima})
-    t.start()
-    t.join()
+    run_id = utils.get_env_var('MLFLOW_RUN_ID')
+    experiment_id = utils.get_env_var('MLFLOW_EXPERIMENT_ID')
+    parent_run_id = utils.get_root_run_id(experiment_names=[utils.get_env_var('CURRENT_EXPERIMENT')])
+
+    logger.info(f"MLflow parameters: run_id={run_id}, experiment_id={experiment_id}, parent_run_id={parent_run_id}")
+
+    with mlflow.start_run(run_id=run_id, experiment_id=experiment_id, run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
+                          nested=True):
+        t = threading.Thread(target=process_anomaly_model,
+                             args=(sample_frequency, reporting_timeframe,),
+                             kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_arima})
+        t.start()
+        t.join()
     return True
 
 
 @scdf_adapter(environment=None)
 def process_anomaly_rnn_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    t = threading.Thread(target=process_anomaly_model,
-                         args=(sample_frequency, reporting_timeframe,),
-                         kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_rnn})
-    t.start()
-    t.join()
+    run_id = utils.get_env_var('MLFLOW_RUN_ID')
+    experiment_id = utils.get_env_var('MLFLOW_EXPERIMENT_ID')
+    parent_run_id = utils.get_root_run_id(experiment_names=[utils.get_env_var('CURRENT_EXPERIMENT')])
+
+    logger.info(f"MLflow parameters: run_id={run_id}, experiment_id={experiment_id}, parent_run_id={parent_run_id}")
+
+    with mlflow.start_run(run_id=run_id, experiment_id=experiment_id, run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
+                          nested=True):
+        t = threading.Thread(target=process_anomaly_model,
+                             args=(sample_frequency, reporting_timeframe,),
+                             kwargs={'rebuild': eval(rebuild), 'model_type': anomaly_detection_rnn})
+        t.start()
+        t.join()
     return True
 
 
