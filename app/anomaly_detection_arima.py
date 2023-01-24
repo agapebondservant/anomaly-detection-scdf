@@ -146,11 +146,13 @@ def build_model(actual_negative_sentiments, rebuild=False):
                                       seasonal=True, trace=True)
 
             logger.info(f"stepwise fit is now...{stepwise_fit}")
-            ray.get(feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
-                    .options(num_cpus=2, memory=40 * 1024 * 1024).remote())
+            func1 = feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)\
+                .options(num_cpus=2, memory=40 * 1024 * 1024)
+            ray.get(func1.remote())
             return True
 
-        ray.get(ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024).remote())
+        func2 = ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024)
+        ray.get(func2.remote())
         return feature_store.load_artifact('anomaly_auto_arima', distributed=False)
     else:
         return stepwise_fit
