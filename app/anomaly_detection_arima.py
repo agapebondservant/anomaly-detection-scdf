@@ -144,15 +144,18 @@ def build_model(actual_negative_sentiments, rebuild=False):
             stepwise_fit = auto_arima(actual_negative_sentiments['sentiment_normalized'], start_p=0, start_q=0, max_p=6,
                                       max_q=6,
                                       seasonal=True, trace=True)
+
+            logger.info(f"stepwise fit is now...{stepwise_fit}")
+            feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
             return stepwise_fit
 
-        func = ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024)
-        stepwise_fit = ray.get(func.remote())
+        ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024).remote()
+        return feature_store.load_artifact('anomaly_auto_arima', distributed=False)
+    else:
+        return stepwise_fit
 
-    logger.info(f"stepwise fit is now...{stepwise_fit}")
-
-    feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
-    return stepwise_fit
+    # feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
+    # return stepwise_fit
 
 
 #######################################
