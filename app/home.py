@@ -16,6 +16,7 @@ import app.feature_store as feature_store
 import app.anomaly_detection_arima as anomaly_detection_arima
 import app.anomaly_detection_rnn as anomaly_detection_rnn
 import traceback
+import threading
 
 HttpHealthServer.run_thread()
 logger = logging.getLogger('mlmodeltest')
@@ -234,17 +235,21 @@ def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False'
         logging.info(f'Stationarity : {model_type.check_stationarity(adf_results)}')
         logging.info(f'P-value : {adf_results[1]}')
 
-        training_task_results = _build_and_train.remote(buffers, model_type, data_freq,
-                                                        total_training_window, total_forecast_window, sliding_window_size,
-                                                        extvars, reporting_timeframe, rebuild)
-        return ray.get(training_task_results)
+        training_task_results = threading.Thread(target=_build_and_train, args=(buffers, model_type, data_freq,
+                                                 total_training_window, total_forecast_window, sliding_window_size,
+                                                 extvars, reporting_timeframe, rebuild,))
+        training_task_results.start()
+
+        return True
+
+        # return ray.get(training_task_results)
 
     except Exception as e:
         logging.error('Could not complete execution - error occurred: ', exc_info=True)
         traceback.print_exc()
 
 
-@ray.remote(num_cpus=4, memory=2 * 1024 * 1024 * 1024)
+# @ray.remote(num_cpus=4, memory=2 * 1024 * 1024 * 1024)
 def _build_and_train(buffers, model_type, data_freq,
                      total_training_window, total_forecast_window, sliding_window_size,
                      extvars, reporting_timeframe, rebuild):
