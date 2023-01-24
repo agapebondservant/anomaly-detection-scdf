@@ -197,7 +197,6 @@ def process_anomaly_rnn_model(sample_frequency, reporting_timeframe, rebuild='Fa
 
 
 def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False', model_type=anomaly_detection_arima):
-    rebuild = eval(rebuild)
 
     # Input features
     data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
