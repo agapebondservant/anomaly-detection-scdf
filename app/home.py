@@ -177,12 +177,12 @@ def evaluate_sentiment_model(ready):
 
 @scdf_adapter(environment=None)
 def process_anomaly_arima_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    return process_anomaly_model(sample_frequency, reporting_timeframe, rebuild=rebuild, model_type=anomaly_detection_arima).remote()
+    return process_anomaly_model().remote(sample_frequency, reporting_timeframe, rebuild=rebuild, model_type=anomaly_detection_arima)
 
 
 @scdf_adapter(environment=None)
 def process_anomaly_rnn_model(sample_frequency, reporting_timeframe, rebuild='False'):
-    return process_anomaly_model(sample_frequency, reporting_timeframe, rebuild=rebuild, model_type=anomaly_detection_rnn).remote()
+    return process_anomaly_model().remote(sample_frequency, reporting_timeframe, rebuild=rebuild, model_type=anomaly_detection_rnn)
 
 
 @ray.remote(num_cpus=2, memory=40 * 1024 * 1024)
