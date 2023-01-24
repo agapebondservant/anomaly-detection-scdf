@@ -149,7 +149,10 @@ def build_model(actual_negative_sentiments, rebuild=False):
             feature_store.save_artifact(stepwise_fit, 'anomaly_auto_arima', distributed=False)
             return stepwise_fit
 
-        ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024).remote()
+        try:
+            ray.get(ray.remote(get_stepwise_fit).options(num_cpus=2, memory=40 * 1024 * 1024).remote())
+        except Exception as e:
+            pass  # Workaround for Ray compatibility issue with statsmodels
         return feature_store.load_artifact('anomaly_auto_arima', distributed=False)
     else:
         return stepwise_fit
