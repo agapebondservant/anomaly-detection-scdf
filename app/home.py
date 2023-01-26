@@ -49,52 +49,58 @@ def process_sentiment_model(msg):
 
     with mlflow.start_run(run_id=run_id, experiment_id=experiment_id, run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
                           nested=True):
-        #######################################################
-        # BEGIN processing
-        #######################################################
 
-        # Once the window size is large enough, start processing
-        if ready:
-            msgs = buffer.take_all()
-            dataset = utils.initialize_timeseries_dataframe(msgs, 'data/schema.csv')
-            dataset = app.sentiment_analysis.prepare_data(dataset)
-
-            # Perform Test-Train Split
-            df_train, df_test = app.sentiment_analysis.train_test_split(dataset)
-
-            # Perform tf-idf vectorization
-            x_train, x_test, y_train, y_test, vectorizer = app.sentiment_analysis.vectorization(df_train, df_test)
-
-            # Generate model
-            baseline_model = app.sentiment_analysis.train(x_train, x_test, y_train, y_test)
-
-            # Store metrics
-            app.sentiment_analysis.generate_and_save_metrics(x_train, x_test, y_train, y_test, baseline_model)
-
-            # Save model
-            app.sentiment_analysis.save_model(baseline_model)
-
-            # Save vectorizer
-            app.sentiment_analysis.save_vectorizer(vectorizer)
-
-            # Upload artifacts
-            controller.log_artifact.remote(parent_run_id, dataset, 'dataset_snapshot')
+        if app.sentiment_analysis.anomaly_detection_needs_training():
 
             #######################################################
-            # RESET globals
+            # BEGIN processing
             #######################################################
-            buffer = None
-            dataset = None
+
+            # Once the window size is large enough, start processing
+            if ready:
+                msgs = buffer.take_all()
+                dataset = utils.initialize_timeseries_dataframe(msgs, 'data/schema.csv')
+                dataset = app.sentiment_analysis.prepare_data(dataset)
+
+                # Perform Test-Train Split
+                df_train, df_test = app.sentiment_analysis.train_test_split(dataset)
+
+                # Perform tf-idf vectorization
+                x_train, x_test, y_train, y_test, vectorizer = app.sentiment_analysis.vectorization(df_train, df_test)
+
+                # Generate model
+                baseline_model = app.sentiment_analysis.train(x_train, x_test, y_train, y_test)
+
+                # Store metrics
+                app.sentiment_analysis.generate_and_save_metrics(x_train, x_test, y_train, y_test, baseline_model)
+
+                # Save model
+                app.sentiment_analysis.save_model(baseline_model)
+
+                # Save vectorizer
+                app.sentiment_analysis.save_vectorizer(vectorizer)
+
+                # Upload artifacts
+                controller.log_artifact.remote(parent_run_id, dataset, 'dataset_snapshot')
+
+                #######################################################
+                # RESET globals
+                #######################################################
+                buffer = None
+                dataset = None
+            else:
+                logger.info(
+                    f"Buffer size not yet large enough to process: expected size {utils.get_env_var('MONITOR_SLIDING_WINDOW_SIZE') or 200}, actual size {buffer.count()} ")
+            logger.info("Completed process step.")
+
+            #######################################################
+            # END processing
+            #######################################################
+
+            return ready
         else:
-            logger.info(
-                f"Buffer size not yet large enough to process: expected size {utils.get_env_var('MONITOR_SLIDING_WINDOW_SIZE') or 200}, actual size {buffer.count()} ")
-        logger.info("Completed process step.")
-
-        #######################################################
-        # END processing
-        #######################################################
-
-        return ready
+            logging.info("Retrain flag = False; skipping training.")
+            return False
 
 
 @scdf_adapter(environment=None)
@@ -205,94 +211,96 @@ def process_anomaly_model(sample_frequency, reporting_timeframe, rebuild='False'
 
     with mlflow.start_run(run_id=run_id, experiment_id=experiment_id, run_name=datetime.now().strftime("%Y-%m-%d-%H%M"),
                           nested=True):
+        if model_type.anomaly_detection_needs_training():
+            # Input features
+            data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
+            logging.info(
+                f"Params: data_freq={data_freq}, sliding_window_size={sliding_window_size}, training_percent={training_percent}")
 
-        # Input features
-        data_freq, sliding_window_size, estimated_seasonality_hours, arima_order, training_percent = 10, 144, 24, None, 0.73  # 0.80
-        logging.info(
-            f"Params: data_freq={data_freq}, sliding_window_size={sliding_window_size}, training_percent={training_percent}")
+            # Other required variables
 
-        # Other required variables
+            extvars = model_type.get_utility_vars()
 
-        extvars = model_type.get_utility_vars()
+            # Set up metrics
 
-        # Set up metrics
+            try:
+                # Ingest Data
+                df = model_type.ingest_data()
 
-        try:
-            # Ingest Data
-            df = model_type.ingest_data()
+                # Store input values
+                model_type.initialize_input_features(data_freq, sliding_window_size, arima_order)
 
-            # Store input values
-            model_type.initialize_input_features(data_freq, sliding_window_size, arima_order)
+                # Prepare data by performing feature extraction
+                buffers = model_type.prepare_data(df, sample_frequency, extvars)
 
-            # Prepare data by performing feature extraction
-            buffers = model_type.prepare_data(df, sample_frequency, extvars)
+                # Determine the training window
+                num_future_predictions = 2
+                if rebuild:
+                    total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
+                    total_forecast_window = len(
+                        buffers['actual_negative_sentiments']) - total_training_window + num_future_predictions
+                else:
+                    total_training_window = len(buffers['actual_negative_sentiments'])
+                    total_forecast_window = num_future_predictions
 
-            # Determine the training window
-            num_future_predictions = 2
-            if rebuild:
-                total_training_window = int(training_percent * len(buffers['actual_negative_sentiments']))
-                total_forecast_window = len(
-                    buffers['actual_negative_sentiments']) - total_training_window + num_future_predictions
-            else:
-                total_training_window = len(buffers['actual_negative_sentiments'])
-                total_forecast_window = num_future_predictions
+                # Save EDA artifacts
+                model_type.generate_and_save_eda_metrics(df)
 
-            # Save EDA artifacts
-            model_type.generate_and_save_eda_metrics(df)
+                # Perform ADF test
+                adf_results = model_type.generate_and_save_adf_results(
+                    buffers['actual_negative_sentiments'])
+                model_type.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
+                                                                  estimated_seasonality_hours)
 
-            # Perform ADF test
-            adf_results = model_type.generate_and_save_adf_results(
-                buffers['actual_negative_sentiments'])
-            model_type.generate_and_save_stationarity_results(buffers['actual_negative_sentiments'],
-                                                              estimated_seasonality_hours)
+                # Check for stationarity
+                logging.info(f'Stationarity : {model_type.check_stationarity(adf_results)}')
+                logging.info(f'P-value : {adf_results[1]}')
 
-            # Check for stationarity
-            logging.info(f'Stationarity : {model_type.check_stationarity(adf_results)}')
-            logging.info(f'P-value : {adf_results[1]}')
+                # Build a predictive model (or reuse existing one if this is not rebuild mode)
+                stepwise_fit = model_type.build_model(buffers['actual_negative_sentiments'], rebuild)
 
-            # Build a predictive model (or reuse existing one if this is not rebuild mode)
-            stepwise_fit = model_type.build_model(buffers['actual_negative_sentiments'], rebuild)
-
-            # Perform training
-            model_results = model_type.train_model(total_training_window, stepwise_fit,
-                                                   buffers['actual_negative_sentiments'],
-                                                   rebuild=rebuild,
-                                                   data_freq=data_freq)
-
-            # Perform forecasting
-            model_forecasts = model_type.generate_forecasts(sliding_window_size,
-                                                            total_forecast_window,
-                                                            stepwise_fit,
-                                                            buffers[
-                                                                'actual_negative_sentiments'],
-                                                            rebuild,
-                                                            total_training_window=total_training_window)
-
-            # Detect anomalies
-            model_results_full = model_type.detect_anomalies(model_results,  # fittedvalues,
-                                                             total_training_window,
-                                                             buffers['actual_negative_sentiments'])
-
-            # Plot anomalies
-            fig = model_type.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
-                                                       model_results_full,
-                                                       model_forecasts,
-                                                       total_training_window,
-                                                       stepwise_fit,
-                                                       extvars,
-                                                       reporting_timeframe,
+                # Perform training
+                model_results = model_type.train_model(total_training_window, stepwise_fit,
+                                                       buffers['actual_negative_sentiments'],
+                                                       rebuild=rebuild,
                                                        data_freq=data_freq)
 
-            # TEMPORARY: Set a flag indicating that training was done
-            feature_store.save_artifact(True, 'anomaly_detection_is_trained', distributed=False)
+                # Perform forecasting
+                model_forecasts = model_type.generate_forecasts(sliding_window_size,
+                                                                total_forecast_window,
+                                                                stepwise_fit,
+                                                                buffers[
+                                                                    'actual_negative_sentiments'],
+                                                                rebuild,
+                                                                total_training_window=total_training_window)
 
-            logger.info("Training complete.")
+                # Detect anomalies
+                model_results_full = model_type.detect_anomalies(model_results,  # fittedvalues,
+                                                                 total_training_window,
+                                                                 buffers['actual_negative_sentiments'])
 
-        except Exception as e:
-            logging.error('Could not complete execution - error occurred: ', exc_info=True)
-            traceback.print_exc()
+                # Plot anomalies
+                fig = model_type.plot_trend_with_anomalies(buffers['actual_negative_sentiments'],
+                                                           model_results_full,
+                                                           model_forecasts,
+                                                           total_training_window,
+                                                           stepwise_fit,
+                                                           extvars,
+                                                           reporting_timeframe,
+                                                           data_freq=data_freq)
 
-        return True
+                # TEMPORARY: Set a flag indicating that training was done
+                model_type.anomaly_detection_is_trained()
+
+                logger.info("Training complete.")
+
+            except Exception as e:
+                logging.error('Could not complete execution - error occurred: ', exc_info=True)
+                traceback.print_exc()
+            return True
+        else:
+            logging.info("Retrain flag = False; skipping training.")
+            return False
 
 
 @scdf_adapter(environment=None)

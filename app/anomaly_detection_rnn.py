@@ -10,7 +10,7 @@ ray.init(runtime_env={'working_dir': ".", 'pip': "requirements.txt",
 import pandas as pd
 import numpy as np
 import logging
-logging.basicConfig(level=logging.DEBUG)
+
 logger = logging.getLogger('rnn')
 from sklearn.metrics import mean_squared_error, mean_absolute_error, median_absolute_error
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf, month_plot, quarter_plot
@@ -31,6 +31,7 @@ from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, SimpleRNN, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
+
 
 ########################################################################################################################
 # ANOMALY DETECTION
@@ -503,6 +504,13 @@ def get_utility_vars():
 # Utility: Check if retraining is required
 # (data normalizers, etc)
 #######################################
-# TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_rnn_is_trained', distributed=False) is None
+
+
+#######################################
+# Utility: Set flag indicating that model
+# is trained
+#######################################
+def anomaly_detection_is_trained():
+    feature_store.save_artifact(True, 'anomaly_detection_rnn_is_trained', distributed=False)

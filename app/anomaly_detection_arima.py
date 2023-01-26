@@ -397,3 +397,11 @@ def get_utility_vars():
 # TODO: Use external pipeline like Argo Workflow/Airflow/Spring Cloud Data Flow
 def anomaly_detection_needs_training():
     return feature_store.load_artifact('anomaly_detection_arima_is_trained', distributed=False) is None
+
+
+#######################################
+# Utility: Set flag indicating that model
+# is trained
+#######################################
+def anomaly_detection_is_trained():
+    feature_store.save_artifact(True, 'anomaly_detection_arima_is_trained', distributed=False)
